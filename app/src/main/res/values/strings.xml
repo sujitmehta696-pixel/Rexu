@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Aurum Trade</string>
+    <string name="sign_in_title">Aurum Trade Terminal</string>
+    <string name="sign_in_subtitle">NSE Stocks, 24K Gold &amp; SIP Paper Trading</string>
+    <string name="google_sign_in_cta">Continue with Google</string>
+    <string name="pro_activated_title">Pro Activated!</string>
+    <string name="pro_activated_subtitle">All institutional trading tools &amp; Midnight Gold theme are now unlocked.</string>
+</resources>

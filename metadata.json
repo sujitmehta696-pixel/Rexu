@@ -1,0 +1,6 @@
+{
+  "name": "Aurum Trade",
+  "description": "Virtual Stock, Gold & SIP Paper Trading Simulator with dual-APK architecture, real-time simulated NSE & Gold engine, and FamGateway v2.0 auto-UPI Pro subscriptions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

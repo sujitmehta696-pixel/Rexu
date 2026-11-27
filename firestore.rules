@@ -1,0 +1,643 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email == 'sujitmehta696@gmail.com';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTs(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // Zero-trust server-verified Pro check: requires subscriptionActive AND unexpired planExpiresAtMillis
+    function isProUser(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.subscriptionActive == true &&
+        get(/databases/$(database)/documents/users/$(userId)).data.planExpiresAtMillis > request.time.toMillis();
+    }
+
+    function isProTheme(theme) {
+      return theme in ['MIDNIGHT_GOLD', 'NEON_TERMINAL'];
+    }
+
+    // --- VALIDATION HELPERS ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        data.email is string && data.email.size() >= 1 && data.email.size() <= 160 &&
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+        data.virtualCash is number && data.virtualCash >= 0 && data.virtualCash <= 1000000000 &&
+        data.initialCash is number && data.initialCash >= 0 && data.initialCash <= 1000000000 &&
+        data.totalRealizedPnl is number && data.totalRealizedPnl >= -1000000000 && data.totalRealizedPnl <= 1000000000 &&
+        data.totalTrades is int && data.totalTrades >= 0 &&
+        data.winningTrades is int && data.winningTrades >= 0 &&
+        data.portfolioResetsUsed is int && data.portfolioResetsUsed >= 0 &&
+        data.preferredTheme in ['DARK_OLED', 'LIGHT', 'MIDNIGHT_GOLD', 'NEON_TERMINAL'] &&
+        data.watchlist is list && data.watchlist.size() <= 50 &&
+        (data.watchlist.size() == 0 || data.watchlist[0] is string) &&
+        data.subscriptionActive is bool &&
+        data.adFree is bool &&
+        data.planId is string && data.planId.size() <= 64 &&
+        data.planName is string && data.planName.size() <= 80 &&
+        data.planStartedAtMillis is int && data.planStartedAtMillis >= 0 &&
+        data.planExpiresAtMillis is int && data.planExpiresAtMillis >= 0;
+    }
+
+    function isValidPosition(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.category in ['STOCK', 'INDEX', 'GOLD', 'COMMODITY', 'MUTUAL_FUND', 'OPTION'] &&
+        data.sector is string && data.sector.size() >= 1 && data.sector.size() <= 40 &&
+        (!('positionSide' in data) || data.positionSide in ['LONG', 'SHORT']) &&
+        data.quantity is number && data.quantity > 0 && data.quantity <= 10000000 &&
+        data.avgPrice is number && data.avgPrice > 0 && data.avgPrice <= 10000000 &&
+        data.leverage is int && data.leverage >= 1 && data.leverage <= 5 &&
+        data.marginUsed is number && data.marginUsed >= 0 && data.marginUsed <= 1000000000 &&
+        data.stopLossPrice is number && data.stopLossPrice >= 0 && data.stopLossPrice <= 10000000 &&
+        data.takeProfitPrice is number && data.takeProfitPrice >= 0 && data.takeProfitPrice <= 10000000 &&
+        (!('trailingSlDistance' in data) || (data.trailingSlDistance is number && data.trailingSlDistance >= 0 && data.trailingSlDistance <= 10000000)) &&
+        (!('highWaterPrice' in data) || (data.highWaterPrice is number && data.highWaterPrice >= 0 && data.highWaterPrice <= 10000000));
+    }
+
+    function isValidTrade(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.category in ['STOCK', 'INDEX', 'GOLD', 'COMMODITY', 'MUTUAL_FUND', 'OPTION'] &&
+        data.sector is string && data.sector.size() >= 1 && data.sector.size() <= 40 &&
+        data.side in ['BUY', 'SELL'] &&
+        data.orderType in ['MARKET', 'LIMIT', 'SL', 'SL_M', 'GTT', 'BRACKET_SL', 'BRACKET_TP', 'BRACKET_TSL', 'SIP_AUTO', 'BASKET', 'OPTION_BUY', 'OPTION_SELL', 'SHORT_SELL', 'SHORT_COVER'] &&
+        data.quantity is number && data.quantity > 0 && data.quantity <= 10000000 &&
+        data.executionPrice is number && data.executionPrice > 0 && data.executionPrice <= 10000000 &&
+        data.totalValue is number && data.totalValue > 0 && data.totalValue <= 1000000000 &&
+        data.leverage is int && data.leverage >= 1 && data.leverage <= 5 &&
+        data.realizedPnl is number && data.realizedPnl >= -1000000000 && data.realizedPnl <= 1000000000 &&
+        data.stopLossPrice is number && data.stopLossPrice >= 0 &&
+        data.takeProfitPrice is number && data.takeProfitPrice >= 0 &&
+        (!('journalTag' in data) || (data.journalTag is string && data.journalTag.size() <= 40)) &&
+        data.notes is string && data.notes.size() <= 300;
+    }
+
+    function isValidPendingOrder(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.category in ['STOCK', 'INDEX', 'GOLD', 'COMMODITY', 'MUTUAL_FUND', 'OPTION'] &&
+        data.sector is string && data.sector.size() >= 1 && data.sector.size() <= 40 &&
+        data.side in ['BUY', 'SELL'] &&
+        data.orderKind in ['LIMIT', 'SL', 'SL_M', 'GTT'] &&
+        data.productType in ['CNC', 'MIS'] &&
+        data.quantity is number && data.quantity > 0 && data.quantity <= 10000000 &&
+        data.limitPrice is number && data.limitPrice >= 0 && data.limitPrice <= 10000000 &&
+        data.triggerPrice is number && data.triggerPrice >= 0 && data.triggerPrice <= 10000000 &&
+        data.leverage is int && data.leverage >= 1 && data.leverage <= 5 &&
+        data.stopLossPrice is number && data.stopLossPrice >= 0 && data.stopLossPrice <= 10000000 &&
+        data.takeProfitPrice is number && data.takeProfitPrice >= 0 && data.takeProfitPrice <= 10000000 &&
+        data.trailingSlDistance is number && data.trailingSlDistance >= 0 && data.trailingSlDistance <= 10000000 &&
+        data.status in ['OPEN', 'EXECUTED', 'CANCELLED'];
+    }
+
+    function isValidCustomWatchlist(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 40 &&
+        data.symbols is list && data.symbols.size() <= 50 &&
+        (data.symbols.size() == 0 || data.symbols[0] is string) &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 20;
+    }
+
+    function isValidOrderBasket(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+        data.items is list && data.items.size() >= 1 && data.items.size() <= 10 &&
+        data.items[0] is string;
+    }
+
+    function isValidSipPlan(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.assetName is string && data.assetName.size() >= 1 && data.assetName.size() <= 80 &&
+        data.amountInr is number && data.amountInr >= 100 && data.amountInr <= 1000000 &&
+        data.frequency in ['DAILY', 'WEEKLY', 'MONTHLY'] &&
+        data.active is bool &&
+        data.totalInvested is number && data.totalInvested >= 0 && data.totalInvested <= 1000000000 &&
+        data.installmentsCompleted is int && data.installmentsCompleted >= 0 &&
+        data.lastExecutedAtMillis is int && data.lastExecutedAtMillis >= 0;
+    }
+
+    function isValidPriceAlert(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.assetName is string && data.assetName.size() >= 1 && data.assetName.size() <= 80 &&
+        data.targetPrice is number && data.targetPrice > 0 && data.targetPrice <= 10000000 &&
+        data.direction in ['ABOVE', 'BELOW'] &&
+        data.triggered is bool;
+    }
+
+    function isValidSubscriptionPlan(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+        data.priceInr is number && data.priceInr >= 1 && data.priceInr <= 100000 &&
+        data.validityDays is int && data.validityDays >= 1 && data.validityDays <= 3650 &&
+        data.discountBadge is string && data.discountBadge.size() <= 40 &&
+        data.tagline is string && data.tagline.size() <= 120 &&
+        data.active is bool &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000;
+    }
+
+    function isValidHttpOrEmptyUrl(url) {
+      return url is string && url.size() <= 500 &&
+        (url == '' || url.matches('^https?://[^\\s]+$'));
+    }
+
+    function isValidAppConfig(data) {
+      return data.adMobEnabled is bool &&
+        data.bannerAdUnitId is string && data.bannerAdUnitId.size() <= 120 &&
+        data.rewardedAdUnitId is string && data.rewardedAdUnitId.size() <= 120 &&
+        data.startingVirtualCash is number && data.startingVirtualCash >= 1000 && data.startingVirtualCash <= 100000000 &&
+        data.rewardedAdBonus is number && data.rewardedAdBonus >= 0 && data.rewardedAdBonus <= 10000000 &&
+        data.backendBaseUrl is string && data.backendBaseUrl.size() <= 300 &&
+        data.enableReferralCard is bool &&
+        data.referralCardTitle is string && data.referralCardTitle.size() <= 80 &&
+        data.referralCardSubtitle is string && data.referralCardSubtitle.size() <= 200 &&
+        data.referralButtonLabel is string && data.referralButtonLabel.size() <= 40 &&
+        isValidHttpOrEmptyUrl(data.referralUrl);
+    }
+
+    function isValidMarketAsset(data) {
+      return data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.category in ['STOCK', 'INDEX', 'GOLD', 'COMMODITY', 'MUTUAL_FUND', 'OPTION'] &&
+        data.sector is string && data.sector.size() >= 1 && data.sector.size() <= 40 &&
+        data.basePrice is number && data.basePrice > 0 && data.basePrice <= 10000000 &&
+        data.volatility is number && data.volatility >= 0.001 && data.volatility <= 0.25 &&
+        data.unitLabel is string && data.unitLabel.size() >= 1 && data.unitLabel.size() <= 32 &&
+        data.active is bool;
+    }
+
+    function isValidLeaderboardEntry(data, userId) {
+      return data.userId == userId &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        data.netWorth is number && data.netWorth >= 0 && data.netWorth <= 2000000000 &&
+        data.returnPct is number && data.returnPct >= -100 && data.returnPct <= 100000 &&
+        data.proMember is bool;
+    }
+
+    function isValidAdminSecret(data) {
+      return data.apiKey is string && data.apiKey.size() <= 256 &&
+        data.webhookSecret is string && data.webhookSecret.size() <= 256 &&
+        data.backendUrl is string && data.backendUrl.size() <= 300;
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. User profiles (Zero-Trust Subscription Lock)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn() && isValidId(userId) && isOwner(userId) &&
+        incoming().userId == userId &&
+        incoming().keys().hasAll([
+          'userId', 'displayName', 'email', 'virtualCash', 'initialCash',
+          'totalRealizedPnl', 'totalTrades', 'winningTrades', 'portfolioResetsUsed',
+          'preferredTheme', 'watchlist', 'subscriptionActive', 'adFree',
+          'planId', 'planName', 'planStartedAtMillis', 'planExpiresAtMillis',
+          'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'displayName', 'email', 'photoUrl', 'virtualCash', 'initialCash',
+          'totalRealizedPnl', 'totalTrades', 'winningTrades', 'portfolioResetsUsed',
+          'preferredTheme', 'watchlist', 'subscriptionActive', 'adFree',
+          'planId', 'planName', 'planStartedAtMillis', 'planExpiresAtMillis',
+          'createdAt', 'updatedAt'
+        ]) &&
+        incoming().subscriptionActive == false &&
+        incoming().adFree == false &&
+        incoming().planId == '' &&
+        incoming().planName == '' &&
+        incoming().planStartedAtMillis == 0 &&
+        incoming().planExpiresAtMillis == 0 &&
+        !isProTheme(incoming().preferredTheme) &&
+        incoming().watchlist.size() <= 5 &&
+        isValidTs(incoming().createdAt) &&
+        isValidTs(incoming().updatedAt) &&
+        isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() && isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        isValidTs(incoming().updatedAt) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            // CRITICAL: Clients can NEVER modify subscriptionActive, adFree, planId, planName, planStartedAtMillis, or planExpiresAtMillis
+            incoming().subscriptionActive == existing().subscriptionActive &&
+            incoming().adFree == existing().adFree &&
+            incoming().planId == existing().planId &&
+            incoming().planName == existing().planName &&
+            incoming().planStartedAtMillis == existing().planStartedAtMillis &&
+            incoming().planExpiresAtMillis == existing().planExpiresAtMillis &&
+            (isProUser(userId) || (incoming().watchlist.size() <= 5 && !isProTheme(incoming().preferredTheme))) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'photoUrl', 'virtualCash', 'initialCash',
+              'totalRealizedPnl', 'totalTrades', 'winningTrades',
+              'portfolioResetsUsed', 'preferredTheme', 'watchlist', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+
+      // Subcollection: Open Positions (Long or Pro Short)
+      match /positions/{symbol} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(symbol) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(symbol) &&
+          isOwner(userId) &&
+          incoming().userId == userId &&
+          incoming().symbol == symbol &&
+          incoming().keys().hasAll([
+            'userId', 'symbol', 'name', 'category', 'sector', 'quantity',
+            'avgPrice', 'leverage', 'marginUsed', 'stopLossPrice', 'takeProfitPrice',
+            'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'symbol', 'name', 'category', 'sector', 'positionSide', 'quantity',
+            'avgPrice', 'leverage', 'marginUsed', 'stopLossPrice', 'takeProfitPrice',
+            'trailingSlDistance', 'highWaterPrice', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidTs(incoming().createdAt) &&
+          isValidTs(incoming().updatedAt) &&
+          isValidPosition(incoming()) &&
+          (
+            (
+              incoming().leverage == 1 &&
+              incoming().stopLossPrice == 0 &&
+              incoming().takeProfitPrice == 0 &&
+              (!('positionSide' in incoming()) || incoming().positionSide == 'LONG') &&
+              (!('trailingSlDistance' in incoming()) || incoming().trailingSlDistance == 0) &&
+              incoming().category != 'OPTION'
+            ) || isProUser(userId)
+          );
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(symbol) &&
+          isOwner(userId) &&
+          isValidPosition(incoming()) &&
+          isValidTs(incoming().updatedAt) &&
+          incoming().userId == existing().userId &&
+          incoming().symbol == existing().symbol &&
+          incoming().createdAt == existing().createdAt &&
+          (
+            (
+              incoming().leverage == 1 &&
+              incoming().stopLossPrice == 0 &&
+              incoming().takeProfitPrice == 0 &&
+              (!('positionSide' in incoming()) || incoming().positionSide == 'LONG') &&
+              (!('trailingSlDistance' in incoming()) || incoming().trailingSlDistance == 0) &&
+              incoming().category != 'OPTION'
+            ) || isProUser(userId)
+          ) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'category', 'sector', 'positionSide', 'quantity', 'avgPrice',
+            'leverage', 'marginUsed', 'stopLossPrice', 'takeProfitPrice',
+            'trailingSlDistance', 'highWaterPrice', 'updatedAt'
+          ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(symbol) && (isOwner(userId) || isAdmin());
+      }
+
+      // Subcollection: Execution Trade Journal
+      match /trades/{tradeId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(tradeId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(tradeId) &&
+          isOwner(userId) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll([
+            'userId', 'symbol', 'name', 'category', 'sector', 'side', 'orderType',
+            'quantity', 'executionPrice', 'totalValue', 'leverage', 'realizedPnl',
+            'stopLossPrice', 'takeProfitPrice', 'notes', 'createdAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'symbol', 'name', 'category', 'sector', 'side', 'orderType',
+            'quantity', 'executionPrice', 'totalValue', 'leverage', 'realizedPnl',
+            'stopLossPrice', 'takeProfitPrice', 'journalTag', 'notes', 'createdAt'
+          ]) &&
+          isValidTs(incoming().createdAt) &&
+          isValidTrade(incoming());
+
+        // Only Pro users may annotate psychology journalTag on existing trades; financial fields remain immutable
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(tradeId) &&
+          isOwner(userId) && isProUser(userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['journalTag']) &&
+          incoming().journalTag is string && incoming().journalTag.size() <= 40;
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(tradeId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Subcollection: Pro Pending Limit, SL, SL-M & GTT Orders
+      match /pending_orders/{orderId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(orderId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(orderId) &&
+          isOwner(userId) && isProUser(userId) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll([
+            'userId', 'symbol', 'name', 'category', 'sector', 'side', 'orderKind',
+            'productType', 'quantity', 'limitPrice', 'triggerPrice', 'leverage',
+            'stopLossPrice', 'takeProfitPrice', 'trailingSlDistance', 'status',
+            'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'symbol', 'name', 'category', 'sector', 'side', 'orderKind',
+            'productType', 'quantity', 'limitPrice', 'triggerPrice', 'leverage',
+            'stopLossPrice', 'takeProfitPrice', 'trailingSlDistance', 'status',
+            'createdAt', 'updatedAt'
+          ]) &&
+          isValidTs(incoming().createdAt) &&
+          isValidTs(incoming().updatedAt) &&
+          isValidPendingOrder(incoming());
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(orderId) &&
+          isOwner(userId) && isProUser(userId) &&
+          isValidPendingOrder(incoming()) &&
+          isValidTs(incoming().updatedAt) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'limitPrice', 'triggerPrice', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(orderId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Subcollection: Pro Custom Watchlists (up to 5)
+      match /watchlists/{watchlistId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(watchlistId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(watchlistId) &&
+          isOwner(userId) && isProUser(userId) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll(['userId', 'name', 'symbols', 'sortOrder', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'name', 'symbols', 'sortOrder', 'createdAt', 'updatedAt']) &&
+          isValidTs(incoming().createdAt) &&
+          isValidTs(incoming().updatedAt) &&
+          isValidCustomWatchlist(incoming());
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(watchlistId) &&
+          isOwner(userId) && isProUser(userId) &&
+          isValidCustomWatchlist(incoming()) &&
+          isValidTs(incoming().updatedAt) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'symbols', 'sortOrder', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(watchlistId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Subcollection: Pro 1-Tap Order Baskets
+      match /baskets/{basketId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(basketId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(basketId) &&
+          isOwner(userId) && isProUser(userId) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll(['userId', 'name', 'items', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'name', 'items', 'createdAt', 'updatedAt']) &&
+          isValidTs(incoming().createdAt) &&
+          isValidTs(incoming().updatedAt) &&
+          isValidOrderBasket(incoming());
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(basketId) &&
+          isOwner(userId) && isProUser(userId) &&
+          isValidOrderBasket(incoming()) &&
+          isValidTs(incoming().updatedAt) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'items', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(basketId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Subcollection: Pro Auto-SIP Plans
+      match /sip_plans/{sipId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(sipId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(sipId) &&
+          isOwner(userId) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll([
+            'userId', 'symbol', 'assetName', 'amountInr', 'frequency', 'active',
+            'totalInvested', 'installmentsCompleted', 'lastExecutedAtMillis',
+            'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'symbol', 'assetName', 'amountInr', 'frequency', 'active',
+            'totalInvested', 'installmentsCompleted', 'lastExecutedAtMillis',
+            'createdAt', 'updatedAt'
+          ]) &&
+          isValidTs(incoming().createdAt) &&
+          isValidTs(incoming().updatedAt) &&
+          isValidSipPlan(incoming()) &&
+          isProUser(userId);
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(sipId) &&
+          isOwner(userId) &&
+          isValidSipPlan(incoming()) &&
+          isValidTs(incoming().updatedAt) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isProUser(userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'amountInr', 'frequency', 'active', 'totalInvested',
+            'installmentsCompleted', 'lastExecutedAtMillis', 'updatedAt'
+          ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(sipId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Subcollection: Pro Price Target Alerts
+      match /price_alerts/{alertId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(alertId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(alertId) &&
+          isOwner(userId) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll([
+            'userId', 'symbol', 'assetName', 'targetPrice', 'direction', 'triggered', 'createdAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'symbol', 'assetName', 'targetPrice', 'direction', 'triggered', 'createdAt'
+          ]) &&
+          isValidTs(incoming().createdAt) &&
+          isValidPriceAlert(incoming()) &&
+          isProUser(userId);
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(alertId) &&
+          isOwner(userId) &&
+          isValidPriceAlert(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['triggered', 'targetPrice', 'direction']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(alertId) && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // 2. Subscription Plans (Public read to signed-in users, Admin write)
+    match /subscription_plans/{planId} {
+      allow get: if isSignedIn() && isValidId(planId);
+      allow list: if isSignedIn();
+
+      allow create: if isAdmin() && isValidId(planId) &&
+        incoming().keys().hasAll(['name', 'priceInr', 'validityDays', 'discountBadge', 'tagline', 'active', 'sortOrder', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['name', 'priceInr', 'validityDays', 'discountBadge', 'tagline', 'active', 'sortOrder', 'createdAt', 'updatedAt']) &&
+        isValidTs(incoming().createdAt) &&
+        isValidTs(incoming().updatedAt) &&
+        isValidSubscriptionPlan(incoming());
+
+      allow update: if isAdmin() && isValidId(planId) &&
+        isValidSubscriptionPlan(incoming()) &&
+        isValidTs(incoming().updatedAt) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'priceInr', 'validityDays', 'discountBadge', 'tagline', 'active', 'sortOrder', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(planId);
+    }
+
+    // 3. Public Non-Secret App Config (AdMob toggle, Starting Cash, Backend URL, Partner/Referral Card)
+    match /app_config/{configId} {
+      allow get: if isSignedIn() && configId == 'global';
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() && configId == 'global' &&
+        incoming().keys().hasAll([
+          'adMobEnabled', 'bannerAdUnitId', 'rewardedAdUnitId',
+          'startingVirtualCash', 'rewardedAdBonus', 'backendBaseUrl',
+          'enableReferralCard', 'referralCardTitle', 'referralCardSubtitle',
+          'referralButtonLabel', 'referralUrl', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'adMobEnabled', 'bannerAdUnitId', 'rewardedAdUnitId',
+          'startingVirtualCash', 'rewardedAdBonus', 'backendBaseUrl',
+          'enableReferralCard', 'referralCardTitle', 'referralCardSubtitle',
+          'referralButtonLabel', 'referralUrl', 'updatedAt'
+        ]) &&
+        isValidTs(incoming().updatedAt) &&
+        isValidAppConfig(incoming());
+
+      allow update: if isAdmin() && configId == 'global' &&
+        isValidAppConfig(incoming()) &&
+        isValidTs(incoming().updatedAt) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'adMobEnabled', 'bannerAdUnitId', 'rewardedAdUnitId',
+          'startingVirtualCash', 'rewardedAdBonus', 'backendBaseUrl',
+          'enableReferralCard', 'referralCardTitle', 'referralCardSubtitle',
+          'referralButtonLabel', 'referralUrl', 'updatedAt'
+        ]);
+
+      allow delete: if isAdmin() && configId == 'global';
+    }
+
+    // 4. Market Assets (Managed by Admin, Read by signed-in users)
+    match /market_assets/{symbol} {
+      allow get: if isSignedIn() && isValidId(symbol);
+      allow list: if isSignedIn();
+
+      allow create: if isAdmin() && isValidId(symbol) &&
+        incoming().symbol == symbol &&
+        incoming().keys().hasAll(['symbol', 'name', 'category', 'sector', 'basePrice', 'volatility', 'unitLabel', 'active', 'updatedAt']) &&
+        incoming().keys().hasOnly(['symbol', 'name', 'category', 'sector', 'basePrice', 'volatility', 'unitLabel', 'active', 'updatedAt']) &&
+        isValidTs(incoming().updatedAt) &&
+        isValidMarketAsset(incoming());
+
+      allow update: if isAdmin() && isValidId(symbol) &&
+        isValidMarketAsset(incoming()) &&
+        isValidTs(incoming().updatedAt) &&
+        incoming().symbol == existing().symbol &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'sector', 'basePrice', 'volatility', 'unitLabel', 'active', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(symbol);
+    }
+
+    // 5. Public Non-PII Leaderboard Entries
+    match /leaderboard_entries/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() && isValidId(userId) && isOwner(userId) &&
+        incoming().keys().hasAll(['userId', 'displayName', 'netWorth', 'returnPct', 'proMember', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'displayName', 'netWorth', 'returnPct', 'proMember', 'updatedAt']) &&
+        isValidTs(incoming().updatedAt) &&
+        isValidLeaderboardEntry(incoming(), userId) &&
+        (incoming().proMember == false || isProUser(userId));
+
+      allow update: if isSignedIn() && isValidId(userId) && isOwner(userId) &&
+        isValidLeaderboardEntry(incoming(), userId) &&
+        isValidTs(incoming().updatedAt) &&
+        incoming().userId == existing().userId &&
+        (incoming().proMember == false || isProUser(userId)) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'netWorth', 'returnPct', 'proMember', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // 6. Payment Orders (Server-Only writes via Admin SDK; owner/admin can read)
+    match /payment_orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // 7. Admin Secrets (Strictly Admin-Only: FamGateway Secret API Key & Webhook Secret)
+    match /admin_secrets/{secretId} {
+      allow get: if isAdmin() && isValidId(secretId);
+      allow list: if isAdmin();
+
+      allow create, update: if isAdmin() && isValidId(secretId) &&
+        incoming().keys().hasAll(['apiKey', 'webhookSecret', 'backendUrl', 'updatedAt']) &&
+        incoming().keys().hasOnly(['apiKey', 'webhookSecret', 'backendUrl', 'updatedAt']) &&
+        isValidTs(incoming().updatedAt) &&
+        isValidAdminSecret(incoming());
+
+      allow delete: if isAdmin() && isValidId(secretId);
+    }
+  }
+}

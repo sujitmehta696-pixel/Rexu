@@ -1,0 +1,325 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Trader account profile, virtual cash balance, stats, and server-verified Pro subscription state.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "virtualCash": { "type": "number" },
+        "initialCash": { "type": "number" },
+        "totalRealizedPnl": { "type": "number" },
+        "totalTrades": { "type": "integer" },
+        "winningTrades": { "type": "integer" },
+        "portfolioResetsUsed": { "type": "integer" },
+        "preferredTheme": { "type": "string", "enum": ["DARK_OLED", "LIGHT", "MIDNIGHT_GOLD", "NEON_TERMINAL"] },
+        "watchlist": { "type": "array" },
+        "subscriptionActive": { "type": "boolean" },
+        "adFree": { "type": "boolean" },
+        "planId": { "type": "string" },
+        "planName": { "type": "string" },
+        "planStartedAtMillis": { "type": "integer" },
+        "planExpiresAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "email", "virtualCash", "initialCash", "totalRealizedPnl", "totalTrades", "winningTrades", "portfolioResetsUsed", "preferredTheme", "watchlist", "subscriptionActive", "adFree", "planId", "planName", "planStartedAtMillis", "planExpiresAtMillis", "createdAt", "updatedAt"]
+    },
+    "Position": {
+      "title": "Position",
+      "description": "Open holding (Long or Pro Short) with optional leverage, bracket SL/TP, and trailing stop-loss.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["STOCK", "INDEX", "GOLD", "COMMODITY", "MUTUAL_FUND", "OPTION"] },
+        "sector": { "type": "string" },
+        "positionSide": { "type": "string", "enum": ["LONG", "SHORT"] },
+        "quantity": { "type": "number" },
+        "avgPrice": { "type": "number" },
+        "leverage": { "type": "integer" },
+        "marginUsed": { "type": "number" },
+        "stopLossPrice": { "type": "number" },
+        "takeProfitPrice": { "type": "number" },
+        "trailingSlDistance": { "type": "number" },
+        "highWaterPrice": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol", "name", "category", "sector", "quantity", "avgPrice", "leverage", "marginUsed", "stopLossPrice", "takeProfitPrice", "createdAt", "updatedAt"]
+    },
+    "TradeRecord": {
+      "title": "TradeRecord",
+      "description": "Execution journal entry with optional Pro psychology tag.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "sector": { "type": "string" },
+        "side": { "type": "string", "enum": ["BUY", "SELL"] },
+        "orderType": { "type": "string", "enum": ["MARKET", "LIMIT", "SL", "SL_M", "GTT", "BRACKET_SL", "BRACKET_TP", "BRACKET_TSL", "SIP_AUTO", "BASKET", "OPTION_BUY", "OPTION_SELL", "SHORT_SELL", "SHORT_COVER"] },
+        "quantity": { "type": "number" },
+        "executionPrice": { "type": "number" },
+        "totalValue": { "type": "number" },
+        "leverage": { "type": "integer" },
+        "realizedPnl": { "type": "number" },
+        "stopLossPrice": { "type": "number" },
+        "takeProfitPrice": { "type": "number" },
+        "journalTag": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol", "name", "category", "sector", "side", "orderType", "quantity", "executionPrice", "totalValue", "leverage", "realizedPnl", "stopLossPrice", "takeProfitPrice", "notes", "createdAt"]
+    },
+    "PendingOrder": {
+      "title": "PendingOrder",
+      "description": "Pro pending Limit, SL, SL-M, and GTT orders monitored by the live price engine.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "sector": { "type": "string" },
+        "side": { "type": "string", "enum": ["BUY", "SELL"] },
+        "orderKind": { "type": "string", "enum": ["LIMIT", "SL", "SL_M", "GTT"] },
+        "productType": { "type": "string", "enum": ["CNC", "MIS"] },
+        "quantity": { "type": "number" },
+        "limitPrice": { "type": "number" },
+        "triggerPrice": { "type": "number" },
+        "leverage": { "type": "integer" },
+        "stopLossPrice": { "type": "number" },
+        "takeProfitPrice": { "type": "number" },
+        "trailingSlDistance": { "type": "number" },
+        "status": { "type": "string", "enum": ["OPEN", "EXECUTED", "CANCELLED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol", "name", "category", "sector", "side", "orderKind", "productType", "quantity", "limitPrice", "triggerPrice", "leverage", "stopLossPrice", "takeProfitPrice", "trailingSlDistance", "status", "createdAt", "updatedAt"]
+    },
+    "CustomWatchlist": {
+      "title": "CustomWatchlist",
+      "description": "Pro multi-watchlist group (up to 5 watchlists per Pro user).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "symbols": { "type": "array" },
+        "sortOrder": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "symbols", "sortOrder", "createdAt", "updatedAt"]
+    },
+    "OrderBasket": {
+      "title": "OrderBasket",
+      "description": "Pro 1-tap multi-stock basket order template.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "items": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "items", "createdAt", "updatedAt"]
+    },
+    "SipPlan": {
+      "title": "SipPlan",
+      "description": "Pro automated recurring virtual SIP investment plan.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "assetName": { "type": "string" },
+        "amountInr": { "type": "number" },
+        "frequency": { "type": "string", "enum": ["DAILY", "WEEKLY", "MONTHLY"] },
+        "active": { "type": "boolean" },
+        "totalInvested": { "type": "number" },
+        "installmentsCompleted": { "type": "integer" },
+        "lastExecutedAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol", "assetName", "amountInr", "frequency", "active", "totalInvested", "installmentsCompleted", "lastExecutedAtMillis", "createdAt", "updatedAt"]
+    },
+    "PriceAlert": {
+      "title": "PriceAlert",
+      "description": "Pro price target alert.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "assetName": { "type": "string" },
+        "targetPrice": { "type": "number" },
+        "direction": { "type": "string", "enum": ["ABOVE", "BELOW"] },
+        "triggered": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol", "assetName", "targetPrice", "direction", "triggered", "createdAt"]
+    },
+    "SubscriptionPlan": {
+      "title": "SubscriptionPlan",
+      "description": "Admin-managed Pro subscription tier.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "priceInr": { "type": "number" },
+        "validityDays": { "type": "integer" },
+        "discountBadge": { "type": "string" },
+        "tagline": { "type": "string" },
+        "active": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "priceInr", "validityDays", "discountBadge", "tagline", "active", "sortOrder", "createdAt", "updatedAt"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Public non-secret AdMob, virtual cash, backend endpoint, and partner referral banner settings managed by Admin.",
+      "type": "object",
+      "properties": {
+        "adMobEnabled": { "type": "boolean" },
+        "bannerAdUnitId": { "type": "string" },
+        "rewardedAdUnitId": { "type": "string" },
+        "startingVirtualCash": { "type": "number" },
+        "rewardedAdBonus": { "type": "number" },
+        "backendBaseUrl": { "type": "string" },
+        "enableReferralCard": { "type": "boolean" },
+        "referralCardTitle": { "type": "string" },
+        "referralCardSubtitle": { "type": "string" },
+        "referralButtonLabel": { "type": "string" },
+        "referralUrl": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adMobEnabled", "bannerAdUnitId", "rewardedAdUnitId", "startingVirtualCash", "rewardedAdBonus", "backendBaseUrl", "enableReferralCard", "referralCardTitle", "referralCardSubtitle", "referralButtonLabel", "referralUrl", "updatedAt"]
+    },
+    "MarketAsset": {
+      "title": "MarketAsset",
+      "description": "Simulated NSE stock, Nifty index, Gold, Commodity, or Mutual Fund asset configured by Admin.",
+      "type": "object",
+      "properties": {
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["STOCK", "INDEX", "GOLD", "COMMODITY", "MUTUAL_FUND", "OPTION"] },
+        "sector": { "type": "string" },
+        "basePrice": { "type": "number" },
+        "volatility": { "type": "number" },
+        "unitLabel": { "type": "string" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["symbol", "name", "category", "sector", "basePrice", "volatility", "unitLabel", "active", "updatedAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Non-PII public trader leaderboard ranking.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "netWorth": { "type": "number" },
+        "returnPct": { "type": "number" },
+        "proMember": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "netWorth", "returnPct", "proMember", "updatedAt"]
+    },
+    "AdminGatewaySecret": {
+      "title": "AdminGatewaySecret",
+      "description": "Restricted FamGateway API key, webhook secret, and backend URL.",
+      "type": "object",
+      "properties": {
+        "apiKey": { "type": "string" },
+        "webhookSecret": { "type": "string" },
+        "backendUrl": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["apiKey", "webhookSecret", "backendUrl", "updatedAt"]
+    },
+    "PaymentOrder": {
+      "title": "PaymentOrder",
+      "description": "Backend-only FamGateway UPI payment transaction record.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "uid": { "type": "string" },
+        "planId": { "type": "string" },
+        "planName": { "type": "string" },
+        "amountInr": { "type": "number" },
+        "validityDays": { "type": "integer" },
+        "status": { "type": "string", "enum": ["PENDING", "PAID", "FAILED"] },
+        "checkoutUrl": { "type": "string" },
+        "utr": { "type": "string" },
+        "createdAtMillis": { "type": "integer" },
+        "verifiedAtMillis": { "type": "integer" }
+      },
+      "required": ["orderId", "uid", "planId", "planName", "amountInr", "validityDays", "status", "checkoutUrl", "createdAtMillis"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Per-user trading account and read-only subscription status."
+    },
+    "/users/{userId}/positions/{symbol}": {
+      "schema": { "$ref": "#/entities/Position" },
+      "description": "User's active holdings (Long or Pro Short) and bracket/trailing SL orders."
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": { "$ref": "#/entities/TradeRecord" },
+      "description": "User's execution history and Pro psychology journal tags."
+    },
+    "/users/{userId}/pending_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/PendingOrder" },
+      "description": "User's Pro pending Limit, SL, SL-M, and GTT orders."
+    },
+    "/users/{userId}/watchlists/{watchlistId}": {
+      "schema": { "$ref": "#/entities/CustomWatchlist" },
+      "description": "User's Pro custom watchlists (up to 5)."
+    },
+    "/users/{userId}/baskets/{basketId}": {
+      "schema": { "$ref": "#/entities/OrderBasket" },
+      "description": "User's Pro multi-stock 1-tap order baskets."
+    },
+    "/users/{userId}/sip_plans/{sipId}": {
+      "schema": { "$ref": "#/entities/SipPlan" },
+      "description": "User's Pro auto-SIP recurring plans."
+    },
+    "/users/{userId}/price_alerts/{alertId}": {
+      "schema": { "$ref": "#/entities/PriceAlert" },
+      "description": "User's Pro price target alerts."
+    },
+    "/subscription_plans/{planId}": {
+      "schema": { "$ref": "#/entities/SubscriptionPlan" },
+      "description": "Admin-managed Pro plans."
+    },
+    "/app_config/{configId}": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "Public non-secret app config managed by Admin."
+    },
+    "/market_assets/{symbol}": {
+      "schema": { "$ref": "#/entities/MarketAsset" },
+      "description": "Simulated market instruments managed by Admin."
+    },
+    "/leaderboard_entries/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Public non-PII leaderboard standings."
+    },
+    "/admin_secrets/{secretId}": {
+      "schema": { "$ref": "#/entities/AdminGatewaySecret" },
+      "description": "Strictly admin-only FamGateway API secrets."
+    },
+    "/payment_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/PaymentOrder" },
+      "description": "Server-managed UPI subscription orders."
+    }
+  }
+}
